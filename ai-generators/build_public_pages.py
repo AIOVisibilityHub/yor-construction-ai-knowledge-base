@@ -388,6 +388,20 @@ def generate_page(title, content):
 </body>
 </html>"""
 
+
+
+def _write_placeholder_page(filename: str, title: str, message: str) -> bool:
+    """Always create the page file so downstream git steps don't fail."""
+    try:
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(generate_page(title, f"<p>{escape_html(message)}</p>"))
+        print(f"ℹ️  {filename} generated with placeholder content")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to write placeholder {filename}: {e}")
+        return False
+
+
 # =========================
 # Pages
 # =========================
@@ -400,8 +414,8 @@ def generate_contact_page():
     locations_dir = "schemas/locations"
     print(f"🔍 Checking contact data in: {locations_dir}")
     if not os.path.exists(locations_dir):
-        print(f"❌ Locations directory not found: {locations_dir} — skipping contact.html")
-        return False
+        print(f"❌ Locations directory not found: {locations_dir} — writing placeholder contact.html")
+        return _write_placeholder_page("contact.html", "Contact Us", "Contact details are not available yet.")
 
     def _extract_contact(loc):
         phone = _first_nonempty(_alias_get(loc, "phone"))
@@ -455,10 +469,8 @@ def generate_contact_page():
                 block += f"<strong>Contact:</strong> {escape_html(person)}<br>"
             if addr:
                 block += f"<strong>Address:</strong> {escape_html(addr)}<br>"
-            if phone:
-                block += f"<strong>Phone:</strong> <a href='tel:{escape_html(phone)}'>{escape_html(phone)}</a><br>"
-            if email:
-                block += f"<strong>Email:</strong> <a href='mailto:{escape_html(email)}'>{escape_html(email)}</a><br>"
+            # Phone/Email are shown in the Quick Contact card above to avoid duplicates
+            # (and to keep each location card focused on address/hours/map).
             if hours:
                 block += f"<strong>Hours:</strong> {escape_html(hours)}<br>"
             if site:
@@ -483,8 +495,8 @@ def generate_contact_page():
             rendered += 1
 
     if not items:
-        print(f"⚠️ No usable contact info found (scanned {files_seen} files, {records_seen} records). Skipping contact.html")
-        return False
+        print(f"⚠️ No usable contact info found (scanned {files_seen} files, {records_seen} records). Writing placeholder contact.html")
+        return _write_placeholder_page("contact.html", "Contact Us", "Contact details are not available yet.")
 
     # Intro + ALWAYS show Quick Contact (name + email + phone) from first record
     intro = "<p>We’d love to hear from you. Reach out using the details below or visit us at our offices.</p>"
@@ -509,8 +521,8 @@ def generate_services_page():
     services_dir = "schemas/services"
     print(f"🔍 Checking services data in: {services_dir}")
     if not os.path.exists(services_dir):
-        print(f"❌ Services directory not found: {services_dir} — skipping services.html")
-        return False
+        print(f"❌ Services directory not found: {services_dir} — writing placeholder services.html")
+        return _write_placeholder_page("services.html", "Our Services", "No services have been published yet.")
 
     def _guess_title(obj, filename):
         candidate = _first_nonempty(
@@ -586,8 +598,8 @@ def generate_services_page():
             """)
 
     if not items:
-        print("⚠️ No valid services found — skipping services.html")
-        return False
+        print("⚠️ No valid services found — writing placeholder services.html")
+        return _write_placeholder_page("services.html", "Our Services", "No services have been published yet.")
 
     with open("services.html", "w", encoding="utf-8") as f:
         f.write(generate_page("Our Services", "".join(items)))
@@ -601,8 +613,8 @@ def generate_testimonials_page():
     reviews_dir = "schemas/reviews"
     print(f"🔍 Checking testimonials data in: {reviews_dir}")
     if not os.path.exists(reviews_dir):
-        print(f"❌ Reviews directory not found: {reviews_dir} — skipping testimonials.html")
-        return False
+        print(f"❌ Reviews directory not found: {reviews_dir} — writing placeholder testimonials.html")
+        return _write_placeholder_page("testimonials.html", "Testimonials", "No testimonials have been published yet.")
 
     items = []
     for file in os.listdir(reviews_dir):
@@ -630,8 +642,8 @@ def generate_testimonials_page():
                 """)
 
     if not items:
-        print("⚠️ No valid testimonials found — skipping testimonials.html")
-        return False
+        print("⚠️ No valid testimonials found — writing placeholder testimonials.html")
+        return _write_placeholder_page("testimonials.html", "Testimonials", "No testimonials have been published yet.")
 
     with open("testimonials.html", "w", encoding="utf-8") as f:
         f.write(generate_page("Testimonials", "".join(items)))
@@ -849,8 +861,8 @@ def generate_faq_page():
     faq_dir = "schemas/faqs"
     print(f"🔍 Checking FAQs in: {faq_dir}")
     if not os.path.exists(faq_dir):
-        print(f"❌ FAQ directory not found: {faq_dir} — skipping faqs.html")
-        return False
+        print(f"❌ FAQ directory not found: {faq_dir} — writing placeholder faqs.html")
+        return _write_placeholder_page("faqs.html", "Frequently Asked Questions", "No FAQs have been published yet.")
 
     items = []
     for file in os.listdir(faq_dir):
@@ -872,8 +884,8 @@ def generate_faq_page():
                 """)
 
     if not items:
-        print("⚠️ No valid FAQs found — skipping faqs.html")
-        return False
+        print("⚠️ No valid FAQs found — writing placeholder faqs.html")
+        return _write_placeholder_page("faqs.html", "Frequently Asked Questions", "No FAQs have been published yet.")
 
     with open("faqs.html", "w", encoding="utf-8") as f:
         f.write(generate_page("Frequently Asked Questions", "".join(items)))
@@ -884,15 +896,15 @@ def generate_help_articles_page():
     help_dir = "schemas/help-articles"
     print(f"🔍 Looking for help articles in: {help_dir}")
     if not os.path.exists(help_dir):
-        print(f"❌ Folder not found: {help_dir}")
-        return False
+        print(f"❌ Folder not found: {help_dir} — writing placeholder help.html")
+        return _write_placeholder_page("help.html", "Help Center", "No help articles have been published yet.")
 
     files_found = [f for f in os.listdir(help_dir) if f.endswith(".md")]
     print(f"📄 Found {len(files_found)} .md files: {files_found[:5]}")
 
     if not files_found:
-        print("⚠️ No .md files found — skipping help.html")
-        return False
+        print("⚠️ No .md files found — writing placeholder help.html")
+        return _write_placeholder_page("help.html", "Help Center", "No help articles have been published yet.")
 
     articles = []
     for file in files_found:
