@@ -2,22 +2,26 @@ name: Build public pages & sitemaps
 
 on:
   push:
-    branches: [ main ]
     paths:
-      - 'schemas/**'            # run when schema files change
-      - 'ai-generators/**'      # or when the page builder changes
-      - 'generate_sitemaps.py'  # or when the sitemap script changes
-      - 'generate_robots.py'    # if you generate robots too (recommended)
-      - 'CNAME'                 # if custom domain changes
-      - '.github/workflows/**'  # so workflow edits trigger runs
+      - "schemas/**"
+      - "ai-generators/**"
+      - "build_public_pages.py"
+      - "ai-generators/build_public_pages.py"
+      - "generate_sitemaps.py"
+      - ".github/workflows/build-public-pages.yml"
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: build-pages-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-pages-and-sitemaps:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,7 +31,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install deps
         run: |
@@ -35,53 +39,38 @@ jobs:
           pip install pyyaml
 
       - name: Build public pages
-        run: python ai-generators/build_public_pages.py
-
-      - name: 🔎 Verify pages exist (debug)
         run: |
-          ls -la
-          ls -la *.html || true
-          ls -la .nojekyll || true
-
-      - name: 💾 Commit Pages (if changed)
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git status --porcelain
-          git commit -m "AUTO: Build public pages" || echo "No page changes to commit"
-          git push || true
-
-      - name: Generate sitemaps
-        run: python generate_sitemaps.py --include-all-html
-
-      - name: 💾 Commit sitemaps (if changed)
-        run: |
-          git add sitemap.xml ai-sitemap.xml
-          git commit -m "AUTO: Update sitemaps" || echo "No sitemap changes to commit"
-          git push || true
-
-      - name: 🤖 Generate robots.txt (recommended)
-        run: python generate_robots.py
-
-      - name: 💾 Commit robots.txt (if changed)
-        run: |
-          git add robots.txt
-          git commit -m "AUTO: Update robots.txt" || echo "No robots changes to commit"
-          git push || true
-
-      - name: Ping search engines (optional inline)
-        if: always()
-        run: |
-          OWNER_REPO="${{ github.repository }}"
-          OWNER="${OWNER_REPO%/*}"
-          REPO="${OWNER_REPO#*/}"
-          BASE="https://${OWNER}.github.io/${REPO}"
-
-          if [ -f CNAME ]; then
-            HOST=$(cat CNAME | tr -d '\r' | sed 's#http://##; s#https://##' | tr -d '/')
-            if [ -n "$HOST" ]; then BASE="https://${HOST}"; fi
+          set -e
+          if [ -f "build_public_pages.py" ]; then
+            python build_public_pages.py
+          elif [ -f "ai-generators/build_public_pages.py" ]; then
+            python ai-generators/build_public_pages.py
+          else
+            echo "ERROR: build_public_pages.py not found in repo root or ai-generators/"
+            exit 1
           fi
 
-          curl -s -o /dev/null -w "%{http_code}\n" "https://www.google.com/ping?sitemap=${BASE}/sitemap.xml" || true
-          curl -s -o /dev/null -w "%{http_code}\n" "https://www.bing.com/ping?sitemap=${BASE}/sitemap.xml" || true
+      - name: Build sitemaps (if script exists)
+        run: |
+          set -e
+          if [ -f "generate_sitemaps.py" ]; then
+            python generate_sitemaps.py
+          else
+            echo "No generate_sitemaps.py found — skipping."
+          fi
+
+      - name: Commit & push (only if changed)
+        run: |
+          set -e
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Auto-generate public pages"
+          git push
