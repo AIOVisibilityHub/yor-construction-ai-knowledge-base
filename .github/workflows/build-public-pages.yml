@@ -1,0 +1,87 @@
+name: Build public pages & sitemaps
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'schemas/**'            # run when schema files change
+      - 'ai-generators/**'      # or when the page builder changes
+      - 'generate_sitemaps.py'  # or when the sitemap script changes
+      - 'generate_robots.py'    # if you generate robots too (recommended)
+      - 'CNAME'                 # if custom domain changes
+      - '.github/workflows/**'  # so workflow edits trigger runs
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-pages-and-sitemaps:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: Build public pages
+        run: python ai-generators/build_public_pages.py
+
+      - name: 🔎 Verify pages exist (debug)
+        run: |
+          ls -la
+          ls -la *.html || true
+          ls -la .nojekyll || true
+
+      - name: 💾 Commit Pages (if changed)
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git status --porcelain
+          git commit -m "AUTO: Build public pages" || echo "No page changes to commit"
+          git push || true
+
+      - name: Generate sitemaps
+        run: python generate_sitemaps.py --include-all-html
+
+      - name: 💾 Commit sitemaps (if changed)
+        run: |
+          git add sitemap.xml ai-sitemap.xml
+          git commit -m "AUTO: Update sitemaps" || echo "No sitemap changes to commit"
+          git push || true
+
+      - name: 🤖 Generate robots.txt (recommended)
+        run: python generate_robots.py
+
+      - name: 💾 Commit robots.txt (if changed)
+        run: |
+          git add robots.txt
+          git commit -m "AUTO: Update robots.txt" || echo "No robots changes to commit"
+          git push || true
+
+      - name: Ping search engines (optional inline)
+        if: always()
+        run: |
+          OWNER_REPO="${{ github.repository }}"
+          OWNER="${OWNER_REPO%/*}"
+          REPO="${OWNER_REPO#*/}"
+          BASE="https://${OWNER}.github.io/${REPO}"
+
+          if [ -f CNAME ]; then
+            HOST=$(cat CNAME | tr -d '\r' | sed 's#http://##; s#https://##' | tr -d '/')
+            if [ -n "$HOST" ]; then BASE="https://${HOST}"; fi
+          fi
+
+          curl -s -o /dev/null -w "%{http_code}\n" "https://www.google.com/ping?sitemap=${BASE}/sitemap.xml" || true
+          curl -s -o /dev/null -w "%{http_code}\n" "https://www.bing.com/ping?sitemap=${BASE}/sitemap.xml" || true

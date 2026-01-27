@@ -1,0 +1,23 @@
+
+# requirements.txt
+
+# This file lists the Python dependencies needed to run the AI Visibility
+# generator for multi‑sheet Excel workbooks.  It is read by the GitHub
+# Actions workflow before running the generator script.  Each line
+# specifies a package and an optional version range.  If you modify
+# `generate_files_xlsx.py` to add additional functionality, add the
+# corresponding dependencies here.
+
+# Pandas is used to read and manipulate dataframes from the Excel
+# workbook.
+pandas>=2.0
+
+# PyYAML is required to write YAML files.
+PyYAML>=6.0
+
+# openpyxl is required by pandas to read .xlsx files.  Without it,
+# pandas will raise a “Missing optional dependency ‘openpyxl’” error.
+openpyxl>=3.1
+
+# If you use Jinja2 templates or other libraries, list them here.
+# Jinja2>=3.0

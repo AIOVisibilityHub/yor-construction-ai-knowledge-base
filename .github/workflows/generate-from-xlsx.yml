@@ -1,0 +1,139 @@
+name: Generate JSON/YAML from XLSX and Update Sitemap
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'templates/*.xlsx'
+
+jobs:
+  generate-and-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+          fetch-depth: 0
+
+      - name: DEBUG - Print Token Length (Safe)
+        run: |
+          TOKEN_LENGTH=${#GH_TOKEN}
+          echo "🔑 GH_TOKEN length: $TOKEN_LENGTH characters"
+          if [ "$TOKEN_LENGTH" -eq 0 ]; then
+            echo "❌ ERROR: GH_TOKEN is EMPTY or NOT SET"
+            exit 1
+          else
+            echo "✅ GH_TOKEN is set (length: $TOKEN_LENGTH)"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          pip install pandas openpyxl PyYAML
+
+      - name: Get Changed XLSX Files via Git Diff
+        id: get_files
+        run: |
+          echo "📄 Comparing against base commit: ${{ github.event.before }}"
+          BEFORE_COMMIT=${{ github.event.before }}
+          if [[ "$BEFORE_COMMIT" == "0000000000000000000000000000000000000000" ]]; then
+            BEFORE_COMMIT=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+          fi
+
+          CHANGED_FILES=$(git diff --name-only --diff-filter=AM "$BEFORE_COMMIT" HEAD | grep '^templates/.*\.xlsx$' || true)
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "⚠️ No .xlsx files detected in templates/ in this push."
+          else
+            echo "✅ Detected changed XLSX files:"
+            echo "$CHANGED_FILES"
+          fi
+
+          echo "changed_xlsx=$CHANGED_FILES" >> $GITHUB_ENV
+
+      - name: Process Each XLSX File
+        if: env.changed_xlsx != ''
+        run: |
+          echo "⚙️ Processing detected XLSX files..."
+          while IFS= read -r xlsx_file; do
+            if [ -n "$xlsx_file" ] && [ -f "$xlsx_file" ]; then
+              echo "📄 Processing: $xlsx_file"
+              python ai-generators/generate_files_from_xlsx.py --input "$xlsx_file"
+            else
+              echo "❌ ERROR: File not found: '$xlsx_file'"
+            fi
+          done <<< "${{ env.changed_xlsx }}"
+
+      - name: Ensure schemas/ Directories Exist
+        run: |
+          mkdir -p schemas/organization
+          mkdir -p schemas/services
+          mkdir -p schemas/products
+          mkdir -p schemas/faqs
+          mkdir -p schemas/help-articles
+          mkdir -p schemas/reviews
+          mkdir -p schemas/locations
+          mkdir -p schemas/team
+          mkdir -p schemas/awards
+          mkdir -p schemas/press
+          mkdir -p schemas/case-studies
+          touch schemas/organization/.gitkeep
+          touch schemas/services/.gitkeep
+          touch schemas/products/.gitkeep
+          touch schemas/faqs/.gitkeep
+          touch schemas/help-articles/.gitkeep
+          touch schemas/reviews/.gitkeep
+          touch schemas/locations/.gitkeep
+          touch schemas/team/.gitkeep
+          touch schemas/awards/.gitkeep
+          touch schemas/press/.gitkeep
+          touch schemas/case-studies/.gitkeep
+
+      - name: Generate or Update Sitemap (FORCE UPDATE)
+        run: |
+          python generate_sitemaps.py
+          touch ai-sitemap.xml
+
+      - name: Verify All Generated Files Exist
+        run: |
+          echo "🔍 VERIFYING OUTPUTS — Listing all generated files:"
+          echo "=================================================="
+          find schema-files -type f KATEX_INLINE_OPEN -name "*.json" -o -name "*.yaml" -o -name "*.md" -o -name "*.llm" KATEX_INLINE_CLOSE | sort
+          echo ""
+          echo "📄 ai-sitemap.xml last modified:"
+          ls -la ai-sitemap.xml
+
+      - name: Configure Git Identity
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Setup Remote with Token (Extra Safety)
+        run: |
+          git remote set-url origin https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/${{ github.repository }}.git
+
+      - name: FORCE ADD AND COMMIT EVERYTHING
+        run: |
+          git add --all
+          echo "📦 STAGED CHANGES:"
+          git status --short
+          git commit -m "🤖 Auto-generate schema + sitemap [$(date +'%Y-%m-%d %H:%M:%S')]" || echo "✅ No changes, still pushing"
+          echo "🚀 PUSHING TO: ${{ github.ref_name }}"
+          git push origin ${{ github.ref_name }}
+
+      - name: DEBUG - Verify Push Result
+        run: |
+          echo "🔎 Verifying latest commit on remote..."
+          git fetch origin ${{ github.ref_name }}
+          git log -1 origin/${{ github.ref_name }} --oneline
+          echo "✅ If commit above matches, SUCCESS! Files are live at Raw URLs."
+
+
