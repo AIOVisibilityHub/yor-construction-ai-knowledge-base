@@ -612,43 +612,52 @@ def generate_services_page():
 def generate_testimonials_page():
     reviews_dir = "schemas/reviews"
     print(f"🔍 Checking testimonials data in: {reviews_dir}")
-    if not os.path.exists(reviews_dir):
-        print(f"❌ Reviews directory not found: {reviews_dir} — writing placeholder testimonials.html")
-        return _write_placeholder_page("testimonials.html", "Testimonials", "No testimonials have been published yet.")
 
     items = []
-    for file in os.listdir(reviews_dir):
-        if file.endswith((".json", ".yaml", ".yml")):
-            filepath = os.path.join(reviews_dir, file)
-            rev_data = load_data(filepath)
-            if not rev_data:
-                continue
-            for rev in (rev_data if isinstance(rev_data, list) else [rev_data]):
-                author = rev.get('customer_name') or rev.get('author') or 'Anonymous'
-                entity = rev.get('entity_name') or ''
-                quote = rev.get('review_body') or rev.get('quote') or rev.get('review_title') or 'No review text provided.'
-                rating = int(rev.get('rating', 5))
-                date = rev.get('date') or ''
-                star_display = '★' * rating + '☆' * (5 - rating)
-                items.append(f"""
-                <blockquote class="card" style="font-style: italic;">
-                    <p>“{escape_html(quote)}”</p>
-                    <footer style="margin-top: 1rem; font-style: normal;">
-                        — {escape_html(author)}{f', {escape_html(entity)}' if entity else ''}
-                        {f'<br/><small>{escape_html(date)}</small>' if date else ''}
-                    </footer>
-                    <div style="margin-top: 0.5rem; color: #f39c12;">{star_display}</div>
-                </blockquote>
-                """)
+    if os.path.exists(reviews_dir):
+        for file in os.listdir(reviews_dir):
+            if file.endswith((".json", ".yaml", ".yml")):
+                filepath = os.path.join(reviews_dir, file)
+                rev_data = load_data(filepath)
+                if not rev_data:
+                    continue
+                for rev in (rev_data if isinstance(rev_data, list) else [rev_data]):
+                    if not isinstance(rev, dict):
+                        continue
+                    author = rev.get('customer_name') or rev.get('author') or 'Anonymous'
+                    entity = rev.get('entity_name') or ''
+                    quote = rev.get('review_body') or rev.get('quote') or rev.get('review_title') or 'No review text provided.'
+                    try:
+                        rating = int(rev.get('rating', 5))
+                    except Exception:
+                        rating = 5
+                    rating = max(1, min(5, rating))
+                    date = rev.get('date') or ''
+                    star_display = '★' * rating + '☆' * (5 - rating)
+                    items.append(f"""
+                    <blockquote class="card" style="font-style: italic;">
+                        <p>“{escape_html(quote)}”</p>
+                        <footer style="margin-top: 1rem; font-style: normal;">
+                            — {escape_html(author)}{f', {escape_html(entity)}' if entity else ''}
+                            {f'<br/><small>{escape_html(date)}</small>' if date else ''}
+                        </footer>
+                        <div style="margin-top: 0.5rem;">{star_display}</div>
+                    </blockquote>
+                    """)
 
+    # ALWAYS write the page, even if there are no reviews yet.
     if not items:
-        print("⚠️ No valid testimonials found — writing placeholder testimonials.html")
-        return _write_placeholder_page("testimonials.html", "Testimonials", "No testimonials have been published yet.")
+        placeholder = "<div class='card'><p>No testimonials have been published yet. Check back soon.</p></div>"
+        html = placeholder
+    else:
+        html = "".join(items)
 
     with open("testimonials.html", "w", encoding="utf-8") as f:
-        f.write(generate_page("Testimonials", "".join(items)))
+        f.write(generate_page("Testimonials", html))
+
     print(f"✅ testimonials.html generated ({len(items)} testimonials)")
     return True
+
 
 def generate_index_page():
     """Home: show 'Welcome to {Entity}' in the visible H1 and keep <title> = '{Entity} — Welcome'."""
