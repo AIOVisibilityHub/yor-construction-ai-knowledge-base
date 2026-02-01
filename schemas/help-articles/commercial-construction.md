@@ -1,0 +1,9 @@
+---
+title: Commercial Buildouts
+slug: commercial-construction
+---
+
+Commercial Buildouts
+
+Q: What permits are needed?
+A: Depends on scope: Always need 1) Building permit, 2) ADA compliance review, 3) Fire department approval in CA.

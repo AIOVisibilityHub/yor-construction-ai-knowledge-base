@@ -1,0 +1,9 @@
+---
+title: Emergency Services
+slug: emergency-repairs
+---
+
+Emergency Services
+
+Q: What constitutes a construction emergency?
+A: 1) Gas leaks, 2) Structural collapses, 3) Severe flooding, 4) Electrical fires. We respond within 2 hours in SoCal.

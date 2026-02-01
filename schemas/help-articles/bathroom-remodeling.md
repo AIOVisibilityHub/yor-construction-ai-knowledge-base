@@ -1,0 +1,9 @@
+---
+title: Bathroom Remodeling
+slug: bathroom-remodeling
+---
+
+Bathroom Remodeling
+
+Q: What's the first step in remodeling?
+A: Measure space and check CA plumbing codes. We provide free 3D designs.
